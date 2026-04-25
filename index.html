@@ -108,6 +108,17 @@
         // expand() — раскрываем приложение на весь экран
         tg.expand();
 
+        // --- Безопасная обертка для методов Telegram SDK ---
+        // Вне Telegram некоторые методы выбрасывают ошибку WebAppMethodUnsupported,
+        // поэтому оборачиваем вызовы в try-catch для корректной работы в браузере
+        function safeShowAlert(message) {
+            try {
+                tg.showAlert(message);
+            } catch (e) {
+                alert(message);
+            }
+        }
+
         // --- Персонализация: извлекаем имя пользователя ---
         // tg.initDataUnsafe содержит данные о пользователе, переданные Telegram
         const user = tg.initDataUnsafe?.user;
@@ -124,23 +135,29 @@
             currentItem = itemName;
 
             // «Это делает телефон пользователя живым» — виброотклик при добавлении
-            if (tg.HapticFeedback) {
-                tg.HapticFeedback.impactOccurred('medium');
-            }
+            try {
+                if (tg.HapticFeedback) {
+                    tg.HapticFeedback.impactOccurred('medium');
+                }
+            } catch (e) { /* Вне Telegram виброотклик недоступен */ }
 
             // Показываем MainButton с текстом «Оформить заказ»
-            tg.MainButton.setText('Оформить заказ');
-            tg.MainButton.show();
+            try {
+                tg.MainButton.setText('Оформить заказ');
+                tg.MainButton.show();
+            } catch (e) { /* MainButton доступна только в Telegram */ }
 
-            tg.showAlert('Товар добавлен в корзину!');
+            safeShowAlert('Товар добавлен в корзину!');
         }
 
         // При нажатии на MainButton — отправляем заказ
-        tg.MainButton.onClick(function() {
-            if (currentItem) {
-                sendOrder(currentItem);
-            }
-        });
+        try {
+            tg.MainButton.onClick(function() {
+                if (currentItem) {
+                    sendOrder(currentItem);
+                }
+            });
+        } catch (e) { /* MainButton доступна только в Telegram */ }
 
         // --- Функция отправки заказа на сервер ---
         // «Официант (fetch) несет заказ на кухню (backend)»
@@ -163,21 +180,25 @@
                     const result = await response.json();
 
                     // Виброотклик при успешном заказе
-                    if (tg.HapticFeedback) {
-                        tg.HapticFeedback.impactOccurred('medium');
-                    }
+                    try {
+                        if (tg.HapticFeedback) {
+                            tg.HapticFeedback.impactOccurred('medium');
+                        }
+                    } catch (e) { /* Вне Telegram виброотклик недоступен */ }
 
                     // Показываем нативное уведомление Telegram
-                    tg.showAlert(result.message);
+                    safeShowAlert(result.message);
                 } else {
-                    tg.showAlert('Ошибка валидации!');
+                    safeShowAlert('Ошибка валидации!');
                 }
             } catch (error) {
-                tg.showAlert('Ошибка сети. Попробуйте позже.');
+                safeShowAlert('Ошибка сети. Попробуйте позже.');
             }
 
             // Скрываем MainButton после оформления
-            tg.MainButton.hide();
+            try {
+                tg.MainButton.hide();
+            } catch (e) { /* MainButton доступна только в Telegram */ }
             currentItem = null;
         }
     </script>
