@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Space Shop — Магазин космического мерча</title>
+
+    <!-- Pico.css — минималистичный CSS-фреймворк, стилизует стандартные HTML-теги -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+
+    <!-- Telegram Web App SDK — позволяет приложению общаться с Telegram -->
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+    <style>
+        /*
+         * «Мимикрия» под Telegram — связываем CSS-переменные Telegram с темой Pico.css.
+         * Когда пользователь переключает тему в Telegram (светлая/темная),
+         * наше приложение автоматически меняет свой внешний вид.
+         */
+        :root {
+            --pico-background-color: var(--tg-theme-bg-color, #ffffff);
+            --pico-color: var(--tg-theme-text-color, #1a1a1a);
+            --pico-primary: var(--tg-theme-button-color, #2481cc);
+            --pico-primary-hover: var(--tg-theme-button-color, #2481cc);
+        }
+
+        body {
+            background-color: var(--tg-theme-bg-color, #ffffff);
+            color: var(--tg-theme-text-color, #1a1a1a);
+        }
+
+        /* Стилизация кнопок под цвет Telegram */
+        [role="button"], button, input[type="submit"] {
+            background-color: var(--tg-theme-button-color, #2481cc);
+            color: var(--tg-theme-button-text-color, #ffffff);
+            border: none;
+        }
+
+        /* Карточка товара */
+        article img {
+            width: 100%;
+            max-height: 200px;
+            object-fit: cover;
+            border-radius: 8px;
+        }
+
+        .price {
+            font-size: 1.4rem;
+            font-weight: bold;
+            color: var(--tg-theme-button-color, #2481cc);
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Навигация — «шапка» приложения -->
+    <nav class="container">
+        <ul>
+            <li><strong>🚀 Space Shop</strong></li>
+        </ul>
+        <ul>
+            <!-- Приветствие с именем пользователя — заполняется через JS -->
+            <li id="greeting">Привет, космонавт!</li>
+        </ul>
+    </nav>
+
+    <!-- Основной контент — карточка товара -->
+    <main class="container">
+        <article>
+            <header>
+                <!-- Изображение товара (плейсхолдер) -->
+                <img src="https://placehold.co/600x200/1a1a2e/e0e0e0?text=%F0%9F%8C%99+Moon+Stone"
+                     alt="Лунный камень">
+            </header>
+
+            <hgroup>
+                <h2>Лунный камень</h2>
+                <p>Настоящий фрагмент лунного грунта, доставленный миссией «Артемида».
+                   Идеальный подарок для ценителей космоса.</p>
+            </hgroup>
+
+            <p class="price">4 990 ₽</p>
+
+            <footer>
+                <!--
+                    Кнопка «В корзину» — при нажатии:
+                    1. Отправляет заказ на сервер через fetch()
+                    2. Активирует MainButton Telegram
+                    3. Запускает виброотклик (HapticFeedback)
+                -->
+                <button onclick="addToCart('Лунный камень')">В корзину</button>
+            </footer>
+        </article>
+    </main>
+
+    <!-- Подвал страницы -->
+    <footer class="container">
+        <small>Space Shop © 2024 — Powered by Telegram Mini Apps</small>
+    </footer>
+
+    <script>
+        // --- Инициализация Telegram SDK ---
+        const tg = window.Telegram.WebApp;
+
+        // ready() — сообщаем Telegram, что приложение загружено
+        tg.ready();
+
+        // expand() — раскрываем приложение на весь экран
+        tg.expand();
+
+        // --- Безопасная обертка для методов Telegram SDK ---
+        // Вне Telegram некоторые методы выбрасывают ошибку WebAppMethodUnsupported,
+        // поэтому оборачиваем вызовы в try-catch для корректной работы в браузере
+        function safeShowAlert(message) {
+            try {
+                tg.showAlert(message);
+            } catch (e) {
+                alert(message);
+            }
+        }
+
+        // --- Персонализация: извлекаем имя пользователя ---
+        // tg.initDataUnsafe содержит данные о пользователе, переданные Telegram
+        const user = tg.initDataUnsafe?.user;
+        if (user?.first_name) {
+            document.getElementById('greeting').textContent =
+                `Привет, ${user.first_name}!`;
+        }
+
+        // --- MainButton — нативная кнопка Telegram внизу экрана ---
+        // Она выглядит как часть самого Telegram, а не нашего приложения
+        let currentItem = null;
+
+        function addToCart(itemName) {
+            currentItem = itemName;
+
+            // «Это делает телефон пользователя живым» — виброотклик при добавлении
+            try {
+                if (tg.HapticFeedback) {
+                    tg.HapticFeedback.impactOccurred('medium');
+                }
+            } catch (e) { /* Вне Telegram виброотклик недоступен */ }
+
+            // Показываем MainButton с текстом «Оформить заказ»
+            try {
+                tg.MainButton.setText('Оформить заказ');
+                tg.MainButton.show();
+            } catch (e) { /* MainButton доступна только в Telegram */ }
+
+            safeShowAlert('Товар добавлен в корзину!');
+        }
+
+        // При нажатии на MainButton — отправляем заказ
+        try {
+            tg.MainButton.onClick(function() {
+                if (currentItem) {
+                    sendOrder(currentItem);
+                }
+            });
+        } catch (e) { /* MainButton доступна только в Telegram */ }
+
+        // --- Функция отправки заказа на сервер ---
+        // «Официант (fetch) несет заказ на кухню (backend)»
+        async function sendOrder(itemName) {
+            try {
+                const response = await fetch('/api/order', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        // Передаем initData для проверки подписи на бэкенде
+                        'X-Telegram-Init-Data': tg.initData || ''
+                    },
+                    body: JSON.stringify({
+                        item_name: itemName,
+                        amount: 1
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+
+                    // Виброотклик при успешном заказе
+                    try {
+                        if (tg.HapticFeedback) {
+                            tg.HapticFeedback.impactOccurred('medium');
+                        }
+                    } catch (e) { /* Вне Telegram виброотклик недоступен */ }
+
+                    // Показываем нативное уведомление Telegram
+                    safeShowAlert(result.message);
+                } else {
+                    safeShowAlert('Ошибка валидации!');
+                }
+            } catch (error) {
+                safeShowAlert('Ошибка сети. Попробуйте позже.');
+            }
+
+            // Скрываем MainButton после оформления
+            try {
+                tg.MainButton.hide();
+            } catch (e) { /* MainButton доступна только в Telegram */ }
+            currentItem = null;
+        }
+    </script>
+
+</body>
+</html>
